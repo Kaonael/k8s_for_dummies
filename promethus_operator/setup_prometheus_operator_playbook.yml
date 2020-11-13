@@ -1,8 +1,0 @@
----
-- hosts: all
-    become: false
-    tasks:
-    - name: Search for stable prom operator
-      command: helm search stable/prometheus-operator --versions --version=">=4.3" --col-width=20
-    - name: install monitoring to kube
-      command: helm install stable/prometheus-operator --version=4.3.6 --name=monitoring --namespace=monitoring --values=values.yaml

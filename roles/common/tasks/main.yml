@@ -1,0 +1,14 @@
+- name: Update apt-get repo and cache
+  become: true
+  apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+
+- name: Install packages that allow apt to be used over HTTPS
+  become: true
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  vars:
+    packages:
+      - apt-transport-https

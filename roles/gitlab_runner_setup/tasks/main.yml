@@ -1,0 +1,51 @@
+- name: Download gitlab runner script
+  become: true
+  get_url:
+    url: https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh
+    dest: /home/gitlab-runner.sh
+    mode: 'u+rwx'
+
+- name: Add gitlab repo
+  become: true
+  command: bash /home/gitlab.sh
+
+- name: Install GitLab Runner
+  become: true
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  environment: 
+    GITLAB_RUNNER_DISABLE_SKEL: true
+  vars:
+    packages:
+      - gitlab-runner
+
+- name: Create GitLab Runner SSL configuration folder.
+  become: true
+  file:
+    path: /etc/gitlab-runner/certs
+    state: directory
+    owner: root
+    group: root
+    mode: 755
+
+- name: Copy Certs for runner
+  become: true
+  copy:
+    src: /etc/gitlab/ssl/{{ ansible_host }}.crt
+    dest: /etc/gitlab-runner/certs/{{ ansible_host }}.crt
+    remote_src: yes
+
+- name: Register Runner
+  shell: 'sudo gitlab-runner register \
+  --non-interactive \
+  --url "https://{{ ansible_host }}" \
+  --registration-token "{{ registration_token }}" \
+  --executor "docker" \
+  --docker-image alpine:latest \
+  --description "docker-runner" \
+  --tag-list "docker" \
+  --run-untagged="true" \
+  --locked="false"'

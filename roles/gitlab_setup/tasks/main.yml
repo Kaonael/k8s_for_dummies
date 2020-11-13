@@ -1,0 +1,87 @@
+- name: Install curl + certs stuff
+  become: true
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  vars:
+    packages:
+      - curl
+      - openssh-server
+      - ca-certificates
+      - tzdata
+      - openssl
+
+- name: Download gitlab script
+  become: true
+  get_url:
+    url: https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh
+    dest: /home/gitlab.sh
+    mode: 'u+rwx'
+
+- name: Add gitlab repo
+  become: true
+  command: bash /home/gitlab.sh
+
+- name: Install Gitlab CE
+  command: sudo EXTERNAL_URL="https://{{ ansible_host }}" apt-get install gitlab-ce
+
+- name: Create GitLab SSL configuration folder.
+  become: true
+  file:
+    path: /etc/gitlab/ssl
+    state: directory
+    owner: root
+    group: root
+    mode: 755
+
+- name: Add current host to openssl config
+  become: true
+  lineinfile:
+    path: /etc/ssl/openssl.cnf
+    insertafter: '# Extensions for a typical CA'
+    line: 'subjectAltName=IP:{{ ansible_host }}'
+
+- name: Check cert exists
+  shell: 'if [ -e /etc/gitlab/ssl/{{ ansible_host }}.crt ]; then echo "true"; else echo "false"; fi'
+  register: cert_exists
+
+- debug:
+    msg: "{{ cert_exists }}"
+
+- name: Create self-signed cert
+  command: sudo openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/gitlab/ssl/{{ ansible_host }}.key -out /etc/gitlab/ssl/{{ ansible_host }}.crt -subj "/C=RU/ST=SVRLD/L=YE/O=EduGitLab/CN=EduGitLab" 
+  when: cert_exists.stdout == "false"
+
+- name: Replace registry url
+  become: true
+  lineinfile: 
+    path: /etc/gitlab/gitlab.rb
+    regexp: "# registry_external_url 'https://registry.example.com'"
+    line: registry_external_url 'https://{{ ansible_host }}:5005'
+    backrefs: yes
+
+- name: Insert Registry Config
+  become: true
+  blockinfile:
+    path: /etc/gitlab/gitlab.rb
+    insertafter: "### Settings used by GitLab application"
+    block: |
+      gitlab_rails['registry_enabled'] = true
+      gitlab_rails['registry_host'] = "{{ ansible_host }}"
+      gitlab_rails['registry_port'] = "5005"
+      gitlab_rails['registry_path'] = "/var/opt/gitlab/gitlab-rails/shared/registry"
+
+- name: Turn Off lets encrypt
+  become: true
+  lineinfile: 
+    path: /etc/gitlab/gitlab.rb
+    insertafter: "# Let's Encrypt integration"
+    line: "letsencrypt['enable'] = false"
+
+- name: Reconfigure Gitlab
+  command: sudo gitlab-ctl reconfigure
+
+- name: Restart gitlab
+  command: sudo gitlab-ctl restart
