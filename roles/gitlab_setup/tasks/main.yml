@@ -26,6 +26,7 @@
 
 - name: Install Gitlab CE
   command: sudo EXTERNAL_URL="https://{{ ansible_host }}" apt-get install gitlab-ce
+  ignore_errors: yes
 
 - name: Create GitLab SSL configuration folder.
   become: true
@@ -66,12 +67,26 @@
   become: true
   blockinfile:
     path: /etc/gitlab/gitlab.rb
+    marker_begin: BEGIN OF REGISTRY CONFIG
+    marker_end: END OF REGISTRY CONFIG
     insertafter: "### Settings used by GitLab application"
     block: |
       gitlab_rails['registry_enabled'] = true
       gitlab_rails['registry_host'] = "{{ ansible_host }}"
       gitlab_rails['registry_port'] = "5005"
       gitlab_rails['registry_path'] = "/var/opt/gitlab/gitlab-rails/shared/registry"
+
+- name: Insert Registry NGINX Config
+  become: true
+  blockinfile:
+    path: /etc/gitlab/gitlab.rb
+    marker_begin: BEGIN OF REGISTRY NGINX CONFIG
+    marker_end: END OF REGISTRY NGINX CONFIG
+    insertafter: '# Below you can find settings that are exclusive to "Registry NGINX"'
+    block: |
+      registry_nginx['enable'] = true
+      registry_nginx['ssl_certificate'] = "/etc/gitlab/ssl/{{ ansible_host }}.crt"
+      registry_nginx['ssl_certificate_key'] = "/etc/gitlab/ssl/{{ ansible_host }}.key"
 
 - name: Turn Off lets encrypt
   become: true

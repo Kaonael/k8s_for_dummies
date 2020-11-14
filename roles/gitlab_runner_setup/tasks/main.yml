@@ -1,15 +1,30 @@
-- name: Download gitlab runner script
+- name: Install Docker deps
   become: true
-  get_url:
-    url: https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh
-    dest: /home/gitlab-runner.sh
-    mode: 'u+rwx'
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  vars:
+    packages:
+      - software-properties-common
+      - gnupg-agent
+      - curl
+      - ca-certificates
 
-- name: Add gitlab repo
+- name: Add an Apt docker key
   become: true
-  command: bash /home/gitlab.sh
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  
+- name: Add Docker repo
+  shell: sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 
-- name: Install GitLab Runner
+- name: UPD apt
+  command: sudo apt-get update
+
+- name: Install Docker
   become: true
   apt:
     name: "{{ packages }}"
@@ -20,7 +35,14 @@
     GITLAB_RUNNER_DISABLE_SKEL: true
   vars:
     packages:
-      - gitlab-runner
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+
+- name: Install Runner
+  become: true
+  apt:
+    deb: https://gitlab-runner-downloads.s3.amazonaws.com/latest/deb/gitlab-runner_amd64.deb
 
 - name: Create GitLab Runner SSL configuration folder.
   become: true
@@ -38,14 +60,34 @@
     dest: /etc/gitlab-runner/certs/{{ ansible_host }}.crt
     remote_src: yes
 
+- name: Install Service
+  command: sudo gitlab-runner install --user root
+  ignore_errors: yes
+
+- name: Add Custom Registry to allowed
+  become: true
+  copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+          "insecure-registries" : [ "{{ ansible_host }}:5005" ]
+      }
+
+- name: Reload docker
+  command: sudo service docker restart
+
 - name: Register Runner
   shell: 'sudo gitlab-runner register \
   --non-interactive \
   --url "https://{{ ansible_host }}" \
   --registration-token "{{ registration_token }}" \
   --executor "docker" \
-  --docker-image alpine:latest \
+  --docker-image "docker:19.03.12" \
+  --docker-tlsverify=false
   --description "docker-runner" \
+  --docker-privileged \
   --tag-list "docker" \
   --run-untagged="true" \
-  --locked="false"'
+  --locked="false" \ 
+  --docker-volumes /var/run/docker.sock:/var/run/docker.sock
+  --docker-cert-path /etc/gitlab/ssl/{{ ansible_host }}.crt'
