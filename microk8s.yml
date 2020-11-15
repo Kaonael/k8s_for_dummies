@@ -1,0 +1,5 @@
+---
+- hosts: kubernet
+  roles:
+    - common
+    - microk8s

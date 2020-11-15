@@ -1,0 +1,38 @@
+- name: Install Docker deps
+  become: true
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  vars:
+    packages:
+      - software-properties-common
+      - gnupg-agent
+      - curl
+      - ca-certificates
+
+- name: Add an Apt docker key
+  become: true
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  
+- name: Add Docker repo
+  shell: sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+- name: UPD apt
+  command: sudo apt-get update
+
+- name: Install Docker
+  become: true
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  vars:
+    packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io

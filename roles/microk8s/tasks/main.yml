@@ -1,0 +1,67 @@
+- name: Install snap
+  become: true
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  vars:
+    packages:
+      - snapd
+
+- name: Install microk8s
+  become: true
+  community.general.snap:
+    name: microk8s
+    classic: yes
+
+- name: Add user to micrk8s group
+  command: sudo usermod -a -G microk8s kaonael
+
+- name: Grant Permissions
+  shell: sudo chown -f -R kaonael ~/.kube
+  ignore_errors: yes
+
+- name: Add Plugin to microk8s
+  become: true
+  blockinfile:
+    path: /var/snap/microk8s/current/args/containerd-template.toml
+    insertafter: '\s\s\s\s\[plugins."io.containerd.grpc.v1.cri".registry.mirrors\]'
+    marker_begin: BEGIN OF REGISTRY CONFIG
+    marker_end: END OF REGISTRY CONFIG
+    block: |6
+                [plugins."io.containerd.grpc.v1.cri".registry.mirrors."{{ hostvars['gitlab']['ansible_ssh_host'] }}:5005"]
+                  endpoint = ["https://{{ hostvars['gitlab']['ansible_ssh_host'] }}:5005"]
+
+- name: skip the registry certificate verification for containerd
+  become: true
+  blockinfile:
+    marker_begin: BEGIN OF CERT CONFIG
+    marker_end: END OF CERT CONFIG
+    path: /var/snap/microk8s/current/args/containerd-template.toml
+    insertafter: 'version = 2'
+    block: |2
+      [plugins."io.containerd.grpc.v1.cri".registry.configs."{{ hostvars['gitlab']['ansible_ssh_host'] }}:5005".tls]
+        insecure_skip_verify = true
+ 
+- name: Add auth credenctials for registry
+  become: true
+  blockinfile:
+    marker_begin: BEGIN OF AUTH CONFIG
+    marker_end: END OF AUTH CONFIG
+    path: /var/snap/microk8s/current/args/containerd-template.toml
+    insertafter: 'version = 2'
+    block: |2
+      [plugins."io.containerd.grpc.v1.cri".registry.configs."{{ hostvars['gitlab']['ansible_ssh_host'] }}:5005".auth]
+        username = "test"
+        password = "{{ ci_token }}"
+  
+- name: Stop microk8s
+  shell: microk8s stop
+
+- name: Wait microk8s stop
+  pause:
+    seconds: 30
+
+- name: Start microk8s
+  shell: microk8s start

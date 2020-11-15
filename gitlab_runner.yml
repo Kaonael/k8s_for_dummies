@@ -1,4 +1,6 @@
 ---
 - hosts: gitlab
   roles:
+    - common
+    - docker_setup
     - gitlab_runner_setup
