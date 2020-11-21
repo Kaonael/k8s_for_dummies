@@ -65,3 +65,9 @@
 
 - name: Start microk8s
   shell: microk8s start
+
+- name: Enable Ingress
+  shell: microk8s enable ingress
+
+- name: Enable Prom Operator
+  shell: microk8s enable prometheus
