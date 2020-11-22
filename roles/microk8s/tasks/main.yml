@@ -71,3 +71,6 @@
 
 - name: Enable Prom Operator
   shell: microk8s enable prometheus
+
+- name: Expose Grafana
+  shell: microk8s.kubectl -n monitoring  expose deployment grafana --type=NodePort --port=3000 || echo "Exposed"
