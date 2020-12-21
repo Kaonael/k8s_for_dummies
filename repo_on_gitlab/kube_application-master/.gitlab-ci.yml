@@ -1,0 +1,48 @@
+stages:
+  - build
+  - deploy
+
+before_script:
+  - echo "$CI_PROJECT_TITLE"
+  - IMAGE="130.193.40.71:5005/root/$CI_PROJECT_NAME"
+  - export TAG="$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+  - export IMAGE_TAG="$IMAGE:$TAG"
+  - echo "$IMAGE_TAG"
+
+variables:
+  KUBECONFIG: /etc/deploy/config
+  
+build:
+  stage: build
+  tags:
+    - docker
+  script:
+      - docker build --tag="$IMAGE_TAG" .
+      - docker login 130.193.40.71:5005 -u test -p "$REGISTRY_ACCESS_TOKEN"
+      - docker push $IMAGE_TAG
+  only:
+    - master
+    - develop
+
+deploy:
+  stage: deploy
+  tags:
+    - docker
+  image: dtzar/helm-kubectl
+  script:
+      - apk add gettext
+      - mkdir -p /etc/deploy
+      - echo ${K8S_DEPLOY_TOKEN} | base64 -d > ${KUBECONFIG}
+      - kubectl config use-context microk8s
+      - envsubst < deployment.yml > deployment_with_image.yml
+      - envsubst < ingress.yml > configured_ingress.yml
+      - kubectl apply -f deployment_with_image.yml
+      - envsubst < service.yml > configured_service.yml
+      - kubectl apply -f configured_service.yml
+      - kubectl apply -f configured_ingress.yml
+      - envsubst < service_monitor.yml > configured_service_monitor.yml
+      - kubectl apply -f configured_service_monitor.yml
+      - envsubst < service_selector.yml > configured_service_selector.yml
+      - kubectl apply -f configured_service_selector.yml
+  only:
+    - master

@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: $CI_PROJECT_TITLE
+  labels:
+    app: $CI_PROJECT_TITLE
+spec:
+  selector:
+    app: $CI_PROJECT_TITLE
+  ports:
+  - name: web
+    port: 5000
